@@ -9,7 +9,11 @@
     "whatsappMessage": "Hello! I saw your ad on Facebook and would like to get more information about Product A.",
     "headingText": "Thank you for your interest.",
     "subheadingText": "Click below to continue your conversation on WhatsApp.",
-    "buttonText": "Continue to WhatsApp"
+    "buttonText": "Continue to WhatsApp",
+    "metaPixelId": "",
+    "mediaType": "image",
+    "mediaWidth": 180,
+    "mediaHeight": 80
   },
   "page2": {
     "id": "page2",
@@ -21,7 +25,11 @@
     "whatsappMessage": "Hi there! I am interested in Special Offer B mentioned in your Meta campaign.",
     "headingText": "Thank you for your interest.",
     "subheadingText": "Click below to continue your conversation on WhatsApp.",
-    "buttonText": "Continue to WhatsApp"
+    "buttonText": "Continue to WhatsApp",
+    "metaPixelId": "",
+    "mediaType": "image",
+    "mediaWidth": 180,
+    "mediaHeight": 80
   },
   "page3": {
     "id": "page3",
@@ -33,7 +41,11 @@
     "whatsappMessage": "Hello! I would like to schedule a consultation regarding your services.",
     "headingText": "Thank you for your interest.",
     "subheadingText": "Click below to continue your conversation on WhatsApp.",
-    "buttonText": "Continue to WhatsApp"
+    "buttonText": "Continue to WhatsApp",
+    "metaPixelId": "",
+    "mediaType": "image",
+    "mediaWidth": 180,
+    "mediaHeight": 80
   },
   "page4": {
     "id": "page4",
@@ -45,6 +57,10 @@
     "whatsappMessage": "Hi! Please connect me with an advisor to discuss VIP membership options.",
     "headingText": "Thank you for your interest.",
     "subheadingText": "Click below to continue your conversation on WhatsApp.",
-    "buttonText": "Continue to WhatsApp"
+    "buttonText": "Continue to WhatsApp",
+    "metaPixelId": "",
+    "mediaType": "image",
+    "mediaWidth": 180,
+    "mediaHeight": 80
   }
 }

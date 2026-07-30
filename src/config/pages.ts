@@ -9,12 +9,20 @@ export interface PageConfig {
   headingText?: string;
   subheadingText?: string;
   buttonText?: string;
+  metaPixelId?: string;
+  mediaType?: "image" | "gif" | "video";
+  mediaWidth?: number;
+  mediaHeight?: number;
 }
 
 export const defaultContent = {
   headingText: "Thank you for your interest.",
   subheadingText: "Click below to continue your conversation on WhatsApp.",
   buttonText: "Continue to WhatsApp",
+  metaPixelId: "",
+  mediaType: "image" as const,
+  mediaWidth: 180,
+  mediaHeight: 80,
 };
 
 export const pagesConfig: Record<string, PageConfig> = {

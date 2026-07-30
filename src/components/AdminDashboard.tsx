@@ -14,7 +14,6 @@ export const AdminDashboard: React.FC = () => {
   const [uploading, setUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load configs on mount
   useEffect(() => {
     async function loadData() {
       const data = await fetchRemoteConfig();
@@ -25,7 +24,7 @@ export const AdminDashboard: React.FC = () => {
 
   const currentConfig = configs[activeTab] || defaultPages[activeTab];
 
-  const handleInputChange = (field: keyof PageConfig, value: string) => {
+  const handleInputChange = (field: keyof PageConfig, value: any) => {
     setConfigs((prev) => ({
       ...prev,
       [activeTab]: {
@@ -38,14 +37,10 @@ export const AdminDashboard: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     setSaveStatus(null);
-    const success = await saveRemoteConfig(configs);
+    await saveRemoteConfig(configs);
     setIsSaving(false);
-    if (success) {
-      setSaveStatus("Saved successfully!");
-      setTimeout(() => setSaveStatus(null), 3000);
-    } else {
-      setSaveStatus("Error saving configuration.");
-    }
+    setSaveStatus("Saved successfully!");
+    setTimeout(() => setSaveStatus(null), 3000);
   };
 
   const handleResetCurrentPage = () => {
@@ -57,48 +52,42 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Browser-native Base64 Uploader (Works 100% on Vercel without server disk writes)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          handleInputChange("logo", data.url);
-        }
-      } else {
-        alert("Upload failed. Using local preview.");
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result) {
-            handleInputChange("logo", event.target.result as string);
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch (err) {
-      console.error("Upload error:", err);
-      // Fallback to data URL
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          handleInputChange("logo", event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    } finally {
-      setUploading(false);
+    if (file.size > 8 * 1024 * 1024) {
+      alert("File size is too large (max 8MB). Please choose a smaller file.");
+      return;
     }
+
+    setUploading(true);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        const base64Data = event.target.result as string;
+        handleInputChange("logo", base64Data);
+
+        // Auto-detect GIF or Video
+        if (file.type.includes("gif")) {
+          handleInputChange("mediaType", "gif");
+        } else if (file.type.includes("video") || file.name.match(/\.(mp4|webm)$/i)) {
+          handleInputChange("mediaType", "video");
+        } else {
+          handleInputChange("mediaType", "image");
+        }
+      }
+      setUploading(false);
+    };
+
+    reader.onerror = () => {
+      alert("Error reading file");
+      setUploading(false);
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleExportJSON = () => {
@@ -133,7 +122,10 @@ export const AdminDashboard: React.FC = () => {
 
   const encodedMessage = encodeURIComponent(currentConfig.whatsappMessage || "");
   const whatsappUrl = `https://wa.me/${(currentConfig.whatsappNumber || "").replace(/[^0-9]/g, "")}?text=${encodedMessage}`;
-  const pageUrl = typeof window !== "undefined" ? `${window.location.origin}/${activeTab}` : `/${activeTab}`;
+  
+  const mediaWidth = currentConfig.mediaWidth || 180;
+  const mediaHeight = currentConfig.mediaHeight || 80;
+  const isVideo = currentConfig.mediaType === "video" || currentConfig.logo?.match(/\.(mp4|webm|ogg)$/i);
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans pb-16">
@@ -145,15 +137,15 @@ export const AdminDashboard: React.FC = () => {
               <WhatsAppIcon className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-zinc-900 tracking-tight">WhatsApp Bridge Config Manager</h1>
-              <p className="text-xs text-zinc-500">Live customization portal for Meta Ads landing pages</p>
+              <h1 className="text-lg font-semibold text-zinc-900 tracking-tight">WhatsApp Bridge Portal</h1>
+              <p className="text-xs text-zinc-500">Live Meta Ads customization dashboard & Meta Pixel tracker</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {saveStatus && (
-              <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${saveStatus.includes("Error") ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"}`}>
-                {saveStatus}
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 animate-fadeIn">
+                ✓ {saveStatus}
               </span>
             )}
             <button
@@ -193,20 +185,49 @@ export const AdminDashboard: React.FC = () => {
               onClick={handleExportJSON}
               className="px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-white border border-zinc-200 rounded-lg shadow-2xs hover:bg-zinc-50"
             >
-              Export Config JSON
+              Export JSON Backup
             </button>
             <label className="px-3 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 bg-white border border-zinc-200 rounded-lg shadow-2xs hover:bg-zinc-50 cursor-pointer">
-              Import Config JSON
+              Import JSON
               <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
             </label>
           </div>
         </div>
 
-        {/* Content Layout Grid: Form (Left) & Live Preview (Right) */}
+        {/* Content Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Form Editor */}
+          {/* Form Column */}
           <div className="lg:col-span-7 space-y-6">
-            {/* Box 1: WhatsApp Configuration */}
+            {/* Box 1: Meta Pixel Integration */}
+            <div className="bg-white rounded-2xl border border-zinc-200/80 p-6 shadow-2xs space-y-5">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+                <h2 className="text-base font-semibold text-zinc-900 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  Meta Ads Pixel Code
+                </h2>
+                <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2.5 py-1 rounded-full">
+                  Auto-Tracks PageView & Leads
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                  Meta Pixel ID (Facebook Pixel)
+                </label>
+                <input
+                  type="text"
+                  value={currentConfig.metaPixelId || ""}
+                  onChange={(e) => handleInputChange("metaPixelId", e.target.value)}
+                  placeholder="e.g. 123456789012345"
+                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition font-mono"
+                />
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Enter your Meta Pixel ID from Facebook Events Manager. It automatically fires <code className="bg-zinc-100 px-1 py-0.5 rounded text-zinc-800">PageView</code> on load and <code className="bg-zinc-100 px-1 py-0.5 rounded text-zinc-800">Lead</code> when the button is clicked.
+                </p>
+              </div>
+            </div>
+
+            {/* Box 2: WhatsApp Configuration */}
             <div className="bg-white rounded-2xl border border-zinc-200/80 p-6 shadow-2xs space-y-5">
               <h2 className="text-base font-semibold text-zinc-900 border-b border-zinc-100 pb-3 flex items-center justify-between">
                 <span>WhatsApp Settings</span>
@@ -228,10 +249,9 @@ export const AdminDashboard: React.FC = () => {
                   type="text"
                   value={currentConfig.whatsappNumber || ""}
                   onChange={(e) => handleInputChange("whatsappNumber", e.target.value)}
-                  placeholder="e.g. 15551234567 (with country code, no + or spaces)"
+                  placeholder="e.g. 15551234567 (country code included, no + or spaces)"
                   className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366] transition"
                 />
-                <p className="text-[11px] text-zinc-400 mt-1">Include full country code without + sign (e.g. 1 for US, 44 for UK, 91 for India)</p>
               </div>
 
               <div>
@@ -245,49 +265,75 @@ export const AdminDashboard: React.FC = () => {
                   placeholder="Message that auto-fills when user opens WhatsApp..."
                   className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366] transition leading-relaxed"
                 />
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-[11px] font-mono text-zinc-400 truncate max-w-[320px]">
-                    URL preview: {whatsappUrl}
-                  </span>
-                  <span className="text-[11px] text-zinc-400">{(currentConfig.whatsappMessage || "").length} chars</span>
-                </div>
               </div>
             </div>
 
-            {/* Box 2: Logo Customization */}
+            {/* Box 3: Media & Size Customization */}
             <div className="bg-white rounded-2xl border border-zinc-200/80 p-6 shadow-2xs space-y-5">
-              <h2 className="text-base font-semibold text-zinc-900 border-b border-zinc-100 pb-3">Company Logo</h2>
+              <h2 className="text-base font-semibold text-zinc-900 border-b border-zinc-100 pb-3">
+                Media Customization (Logo, Image, GIF, or Video)
+              </h2>
 
+              {/* Media Type Selector */}
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-2">Upload New Logo Image</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-2">Media Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { type: "image", label: "Logo / Image" },
+                    { type: "gif", label: "Animated GIF" },
+                    { type: "video", label: "Short Video (MP4)" },
+                  ].map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => handleInputChange("mediaType", item.type)}
+                      className={`px-3 py-2 rounded-xl text-xs font-medium border transition ${
+                        (currentConfig.mediaType || "image") === item.type
+                          ? "border-[#25D366] bg-emerald-50 text-emerald-900 font-semibold"
+                          : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* File Upload Button */}
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 mb-2">Upload Image, GIF, or Video File</label>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-xl text-xs font-medium transition"
+                    className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-medium transition shadow-xs active:scale-95 disabled:opacity-50"
                   >
-                    {uploading ? "Uploading..." : "Choose Image File"}
+                    {uploading ? "Processing File..." : "Choose Local File"}
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/mp4,video/webm"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
-                  <span className="text-xs text-zinc-400">PNG, SVG, JPG or WebP (max 5MB)</span>
+                  <span className="text-xs text-zinc-400">PNG, SVG, GIF, MP4 (max 8MB)</span>
                 </div>
               </div>
 
+              {/* Preset Logos */}
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Preset Logo Selector</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Preset Logos</label>
                 <div className="grid grid-cols-4 gap-2">
                   {["/logos/logo1.png", "/logos/logo2.png", "/logos/logo3.png", "/logos/logo4.png"].map((presetPath, idx) => (
                     <button
                       key={presetPath}
                       type="button"
-                      onClick={() => handleInputChange("logo", presetPath)}
+                      onClick={() => {
+                        handleInputChange("logo", presetPath);
+                        handleInputChange("mediaType", "image");
+                      }}
                       className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition ${
                         currentConfig.logo === presetPath ? "border-[#25D366] bg-emerald-50/50 ring-2 ring-[#25D366]/30" : "border-zinc-200 hover:border-zinc-300 bg-zinc-50"
                       }`}
@@ -301,24 +347,60 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* Media URL Input */}
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Image Path / URL</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Media Source URL / Base64</label>
                 <input
                   type="text"
                   value={currentConfig.logo || ""}
                   onChange={(e) => handleInputChange("logo", e.target.value)}
-                  placeholder="/logos/logo1.png or https://..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366] transition font-mono text-xs"
+                  placeholder="/logos/logo1.png or https://example.com/video.mp4"
+                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366] transition font-mono text-xs truncate"
                 />
+              </div>
+
+              {/* Dimension Sliders */}
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-100">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-semibold text-zinc-700">Max Width</label>
+                    <span className="text-xs font-mono font-medium text-zinc-500">{mediaWidth}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="80"
+                    max="420"
+                    step="5"
+                    value={mediaWidth}
+                    onChange={(e) => handleInputChange("mediaWidth", parseInt(e.target.value, 10))}
+                    className="w-full accent-[#25D366] cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-semibold text-zinc-700">Max Height</label>
+                    <span className="text-xs font-mono font-medium text-zinc-500">{mediaHeight}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="350"
+                    step="5"
+                    value={mediaHeight}
+                    onChange={(e) => handleInputChange("mediaHeight", parseInt(e.target.value, 10))}
+                    className="w-full accent-[#25D366] cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Box 3: Text & Copy Customization */}
+            {/* Box 4: Text Copy */}
             <div className="bg-white rounded-2xl border border-zinc-200/80 p-6 shadow-2xs space-y-5">
-              <h2 className="text-base font-semibold text-zinc-900 border-b border-zinc-100 pb-3">Text & Page Copy</h2>
+              <h2 className="text-base font-semibold text-zinc-900 border-b border-zinc-100 pb-3">Text Copy & SEO</h2>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Heading Line</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Heading</label>
                 <input
                   type="text"
                   value={currentConfig.headingText || ""}
@@ -328,7 +410,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subheading Line</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Subheading</label>
                 <input
                   type="text"
                   value={currentConfig.subheadingText || ""}
@@ -346,19 +428,8 @@ export const AdminDashboard: React.FC = () => {
                   className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366] transition"
                 />
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">SEO Page Title</label>
-                <input
-                  type="text"
-                  value={currentConfig.title || ""}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366] transition"
-                />
-              </div>
             </div>
 
-            {/* Bottom Actions */}
             <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
@@ -379,41 +450,64 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Real-Time Live Preview */}
+          {/* Live Preview Column */}
           <div className="lg:col-span-5 sticky top-24">
             <div className="bg-zinc-900 text-white rounded-3xl p-4 shadow-xl border border-zinc-800">
-              {/* Device Header Simulator */}
               <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800/80 mb-4">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
                   <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
                   <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
                 </div>
-                <span className="text-[11px] font-mono text-zinc-400">Live Visitor View (/{activeTab})</span>
-                <span className="text-xs text-emerald-400 font-medium">100% Live</span>
+                <span className="text-[11px] font-mono text-zinc-400">Live Preview (/{activeTab})</span>
+                <span className="text-xs text-emerald-400 font-medium">Interactive</span>
               </div>
 
-              {/* White Screen Viewport Container */}
+              {/* Viewport */}
               <div className="bg-white rounded-2xl p-6 text-zinc-900 min-h-[460px] flex flex-col items-center justify-center text-center shadow-inner relative overflow-hidden">
-                {/* Logo */}
+                {/* Media Container */}
                 <div className="relative mb-8 w-full flex justify-center items-center">
-                  <div className="relative max-w-[160px] w-full aspect-[3/1] flex items-center justify-center filter drop-shadow-sm">
-                    {currentConfig.logo ? (
+                  <div
+                    className="relative flex items-center justify-center filter drop-shadow-sm"
+                    style={{
+                      maxWidth: `${mediaWidth}px`,
+                      maxHeight: `${mediaHeight}px`,
+                      width: "100%",
+                    }}
+                  >
+                    {isVideo ? (
+                      <video
+                        src={currentConfig.logo}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="rounded-xl object-contain w-auto h-auto"
+                        style={{
+                          maxWidth: `${mediaWidth}px`,
+                          maxHeight: `${mediaHeight}px`,
+                        }}
+                      />
+                    ) : currentConfig.logo ? (
                       <Image
                         src={currentConfig.logo}
-                        alt="Logo Preview"
-                        width={160}
-                        height={50}
+                        alt="Preview"
+                        width={mediaWidth}
+                        height={mediaHeight}
                         unoptimized
-                        className="object-contain max-h-[60px] w-auto h-auto"
+                        className="object-contain w-auto h-auto"
+                        style={{
+                          maxWidth: `${mediaWidth}px`,
+                          maxHeight: `${mediaHeight}px`,
+                        }}
                       />
                     ) : (
-                      <span className="text-xs text-zinc-400 italic">No logo selected</span>
+                      <span className="text-xs text-zinc-400 italic">No media selected</span>
                     )}
                   </div>
                 </div>
 
-                {/* Heading & Subheading */}
+                {/* Headings */}
                 <div className="space-y-2 mb-8">
                   <h3 className="text-zinc-900 text-lg font-semibold tracking-tight leading-snug">
                     {currentConfig.headingText || "Thank you for your interest."}
@@ -423,7 +517,7 @@ export const AdminDashboard: React.FC = () => {
                   </p>
                 </div>
 
-                {/* WhatsApp Button Preview */}
+                {/* Button */}
                 <a
                   href={whatsappUrl}
                   target="_blank"
