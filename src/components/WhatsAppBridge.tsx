@@ -12,7 +12,7 @@ interface WhatsAppBridgeProps {
 
 declare global {
   interface Window {
-    fbq?: any;
+    fbq?: (...args: any[]) => void;
     _fbq?: any;
   }
 }
@@ -21,7 +21,8 @@ export const WhatsAppBridge: React.FC<WhatsAppBridgeProps> = ({ config: initialC
   const [config, setConfig] = useState<PageConfig>(initialConfig);
 
   useEffect(() => {
-    const loadLiveConfig = () => {
+    const loadLiveConfig = async () => {
+      // 1. Check local storage for immediate cached render
       try {
         const saved = localStorage.getItem("whatsapp_bridge_configs_v1");
         if (saved) {
@@ -31,7 +32,25 @@ export const WhatsAppBridge: React.FC<WhatsAppBridgeProps> = ({ config: initialC
           }
         }
       } catch (err) {
-        console.error("Error reading live config", err);
+        console.error("Error reading local config", err);
+      }
+
+      // 2. Fetch remote server configuration so incognito mode & other devices get live updates
+      try {
+        const res = await fetch("/api/config", { cache: "no-store" });
+        if (res.ok) {
+          const remoteData = await res.json();
+          if (remoteData && remoteData[initialConfig.id]) {
+            setConfig(remoteData[initialConfig.id]);
+            try {
+              const currentLocal = JSON.parse(localStorage.getItem("whatsapp_bridge_configs_v1") || "{}");
+              currentLocal[initialConfig.id] = remoteData[initialConfig.id];
+              localStorage.setItem("whatsapp_bridge_configs_v1", JSON.stringify(currentLocal));
+            } catch (e) {}
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch remote config on load", err);
       }
     };
 

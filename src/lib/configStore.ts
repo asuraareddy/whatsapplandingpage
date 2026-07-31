@@ -3,6 +3,21 @@ import { PageConfig, pagesConfig as defaultPagesConfig } from "@/config/pages";
 const LOCAL_STORAGE_KEY = "whatsapp_bridge_configs_v1";
 
 export async function fetchRemoteConfig(): Promise<Record<string, PageConfig>> {
+  // 1. Try remote server fetch first
+  try {
+    const res = await fetch("/api/config", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+      }
+      return data;
+    }
+  } catch (err) {
+    console.warn("Could not fetch remote config from server:", err);
+  }
+
+  // 2. Fallback to localStorage if offline or server fails
   if (typeof window !== "undefined") {
     const local = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (local) {
@@ -15,19 +30,6 @@ export async function fetchRemoteConfig(): Promise<Record<string, PageConfig>> {
         console.error("Failed to parse localStorage config", e);
       }
     }
-  }
-
-  try {
-    const res = await fetch("/api/config", { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      if (typeof window !== "undefined") {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-      }
-      return data;
-    }
-  } catch (err) {
-    console.warn("Could not fetch remote config:", err);
   }
 
   return defaultPagesConfig;
